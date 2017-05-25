@@ -15,9 +15,11 @@ parser = argparse.ArgumentParser(description='Scrapes email addresses from '
 parser.add_argument('URL', metavar='URL', type=str, help='URL you want'
                                                          ' to scrape')
 
-parser.add_argument('-d','--domain', help='Only scrape initial domain', action='store_true')
+parser.add_argument('-dm','--domain', help='Only scrape initial domain', action='store_true')
 
 parser.add_argument('-hw','--howmany', help='Scrape until collect N emails', type=int, default=10, metavar='N')
+
+parser.add_argument('-dp','--depth', help='Scrape until N depth links', type=int, default=3, metavar='depth')
 
 args = parser.parse_args()
 print args
@@ -25,10 +27,10 @@ email_regex = re.compile(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+")
 
 totallinks = []
 totalmails = set()
-controllinks = set()
+controllinks = {}
 
 def ExtraeCorreos(url):
-    print url
+    
     try:
         webContent = urllib2.urlopen(url).read()
 
@@ -47,15 +49,15 @@ def ExtraeCorreos(url):
         logging.warning(e, exc_info=True)
 
 
-def ExtraeLinks(url):
-
+def ExtraeLinks(url, depth):
+    
     try:
         webContent = urllib2.urlopen(url).read()
 
         sopa = BeautifulSoup(webContent, 'html.parser')
 
         links = sopa.find_all('a', href=True)
-
+        
         for link in links:
             link = link['href']
             absolute = bool(link.startswith('http'))
@@ -66,7 +68,7 @@ def ExtraeLinks(url):
                     pass
                 else:
                     totallinks.append(link)
-                    controllinks.add(link)
+                    controllinks[link] = depth + 1
 
             elif not absolute:
 
@@ -76,7 +78,7 @@ def ExtraeLinks(url):
                     pass
                 else:
                     totallinks.append(unitedurl)
-                    controllinks.add(unitedurl)
+                    controllinks[unitedurl] = depth + 1 
 
         return len(links)
 
@@ -91,18 +93,28 @@ def ExtraeLinks(url):
 url = "http://%s" % args.URL
 totallinks.append(url)
 
+controllinks[url] = 0
 initialdomain = urlparse(url)
 
+maxdepth = args.depth
+
 for link in totallinks:
-    if urlparse(link).netloc != initialdomain.netloc and args.domain == True:
+
+    depth = controllinks[link]
+
+    if depth >= maxdepth:
+        break
+    elif urlparse(link).netloc != initialdomain.netloc and args.domain == True:
         pass
     elif len(totalmails) > args.howmany: 
         break
     else:
         correosenlink = ExtraeCorreos(link)
-        linksenlink = ExtraeLinks(link)
-        print "En %s hay %s correos y %s links " % (link, correosenlink,
-                                                    linksenlink)
+        linksenlink = ExtraeLinks(link, depth)
+        if (correosenlink is not None) and (linksenlink is not None):
+                
+            print "En %s hay %s correos y %s links " % (link, correosenlink,
+                                                        linksenlink)
 
 pprint(totalmails)
 print len(totalmails)
