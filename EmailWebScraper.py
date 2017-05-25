@@ -5,13 +5,19 @@ import bs4
 from bs4 import BeautifulSoup
 from urlparse import urljoin, urlparse
 import argparse
+import logging
 
+logging.basicConfig(filename='EmailWebScraper.log', level=logging.WARNING, format='%(asctime)s %(message)s')
 
 parser = argparse.ArgumentParser(description='Scrapes email addresses from '
                                              'a website recursively')
 
 parser.add_argument('URL', metavar='URL', type=str, help='URL you want'
                                                          ' to scrape')
+
+parser.add_argument('-d','--domain', help='Only scrape initial domain', action='store_true')
+
+parser.add_argument('-hw','--howmany', help='Scrape until collect N emails', type=int, default=10, metavar='N')
 
 args = parser.parse_args()
 print args
@@ -22,7 +28,7 @@ totalmails = set()
 controllinks = set()
 
 def ExtraeCorreos(url):
-    
+    print url
     try:
         webContent = urllib2.urlopen(url).read()
 
@@ -34,7 +40,11 @@ def ExtraeCorreos(url):
 
     except urllib2.HTTPError, e:
 
-        print e
+        logging.warning(e, exc_info=True)
+
+    except urllib2.URLError, e:
+
+        logging.warning(e, exc_info=True)
 
 
 def ExtraeLinks(url):
@@ -72,21 +82,27 @@ def ExtraeLinks(url):
 
     except urllib2.HTTPError, e:
 
-        print e
+        logging.warning(e, exc_info=True)
+
+    except urllib2.URLError, e:
+
+        logging.warning(e, exc_info=True)
 
 url = "http://%s" % args.URL
 totallinks.append(url)
 
-domain = urlparse(url)
+initialdomain = urlparse(url)
 
 for link in totallinks:
-
-    if len(totalmails) > 10 or urlparse(link).netloc != domain.netloc: #asi solo se queda en el dominio, ponerlo como opcion en command line
+    if urlparse(link).netloc != initialdomain.netloc and args.domain == True:
+        pass
+    elif len(totalmails) > args.howmany: 
         break
-    correosenlink = ExtraeCorreos(link)
-    linksenlink = ExtraeLinks(link)
-    print "En %s hay %s correos y %s links " % (link, correosenlink,
-                                                linksenlink)
+    else:
+        correosenlink = ExtraeCorreos(link)
+        linksenlink = ExtraeLinks(link)
+        print "En %s hay %s correos y %s links " % (link, correosenlink,
+                                                    linksenlink)
 
 pprint(totalmails)
 print len(totalmails)
